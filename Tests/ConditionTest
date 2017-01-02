@@ -1,0 +1,256 @@
+*&---------------------------------------------------------------------*
+*& Report  YARO3
+*&
+*&---------------------------------------------------------------------*
+*&    Get condiciones y costo nadro
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  yaro3.
+CONSTANTS:
+true TYPE sap_bool VALUE 'X'.
+
+TYPES:
+BEGIN OF ts_eina,
+  infnr TYPE eina-infnr,
+  matnr TYPE eina-matnr,
+END OF ts_eina,
+tt_eina TYPE STANDARD TABLE OF ts_eina.
+
+TYPES:
+BEGIN OF ts_eine,
+  infnr TYPE eina-infnr,
+  netpr TYPE eine-netpr,
+END OF ts_eine,
+tt_eine TYPE STANDARD TABLE OF ts_eine.
+
+TYPES:
+BEGIN OF ts_zpcn,
+  infnr TYPE eina-infnr,
+  matnr TYPE eina-matnr,
+  netpr TYPE eine-netpr,
+END OF ts_zpcn,
+tt_zpcn TYPE STANDARD TABLE OF ts_zpcn.
+
+DATA:
+tl_eina TYPE tt_eina.
+
+SELECT infnr
+       matnr
+INTO TABLE tl_eina
+FROM eina
+WHERE matnr = '6'
+AND loekz = space  .
+
+
+TYPES:
+BEGIN OF ts_konp,
+  knumh TYPE konp-knumh,
+  kopos TYPE konp-kopos,
+  kschl TYPE konp-kschl,
+  krech TYPE konp-krech,
+  kbetr TYPE konp-kbetr,
+  konwa TYPE konp-konwa,
+ END OF ts_konp.
+
+
+DATA:
+vl_kozfg TYPE t685-kozgf,
+tl_682 TYPE STANDARD TABLE OF t682i,                        "tt_682,
+tl_conditions TYPE STANDARD TABLE OF kond_t683s,
+komk TYPE komk,
+komp TYPE komp,
+koprt TYPE koprt,
+sdprothead TYPE sdprothead,
+sl_t682 TYPE t682i,
+tl_cond TYPE STANDARD TABLE OF a000 WITH HEADER LINE,
+tl_cond_show TYPE STANDARD TABLE OF a000 WITH HEADER LINE,"TYPE STANDARD TABLE OF kond_t683s-kond_data.
+tl_konp TYPE STANDARD TABLE OF ts_konp.
+
+DATA:
+tl_jerarquia TYPE STANDARD TABLE OF vbpavb.
+
+FIELD-SYMBOLS:
+<wa_konp> LIKE LINE OF tl_konp,
+<wa_t682> LIKE LINE OF tl_682,
+<wa_jer> LIKE LINE OF tl_jerarquia.
+
+PARAMETERS:
+p_cond TYPE konp-kschl DEFAULT 'ZDFI',
+p_vkorg TYPE vbak-vkorg DEFAULT '1210',
+p_vtweg TYPE vbak-vtweg DEFAULT '10',
+p_spart TYPE vbak-spart DEFAULT '10',
+p_kunnr TYPE vbak-kunnr DEFAULT '0001017861'.
+
+PARAMETERS:
+p_matnr TYPE mara-matnr DEFAULT '100'.
+
+
+*Extraer Registro Info Material en base
+*a material de la tabla EINA-INFNR
+*Excluir los que tengan marcado el campo Peticion de Borrado
+* de la tabla EINE-LOEKZ y extraer el campo Precio neto EINE-NETPR
+
+
+"Get AccSq de Promocionales
+SELECT SINGLE kozgf
+INTO vl_kozfg
+FROM t685
+WHERE kvewe = 'A' "Pricing "'N' "Freegoods
+AND kappl = 'V' "SD
+AND kschl = p_cond.                                         "'ZA02'.
+
+"Get Accesos
+SELECT *
+INTO TABLE tl_682
+FROM t682i
+WHERE kvewe = 'A' "Pricing "'N'
+AND kappl = 'V' "Ventas
+AND kozgf = vl_kozfg.
+
+"Get hierarchy
+CALL FUNCTION 'RKE_READ_CUSTOMER_HIERARCHY'
+  EXPORTING
+    customer             = p_kunnr
+*   DATE                 = SY-DATUM
+    htype                = 'A'
+    sales_channel        = p_vtweg
+    sales_division       = p_spart
+    sales_org            = p_vkorg
+  TABLES
+    hpath                = tl_jerarquia.
+
+LOOP AT tl_jerarquia ASSIGNING <wa_jer>.
+  CASE <wa_jer>-histunr.
+    WHEN '01'.
+      komk-lhienr01 = <wa_jer>-kunnr.
+    WHEN '02'.
+      komk-lhienr02 = <wa_jer>-kunnr.
+    WHEN '03'.
+      komk-lhienr03 = <wa_jer>-kunnr.
+  ENDCASE.
+ENDLOOP.
+
+"Header
+komk-vkorg = p_vkorg.                                       "'1210'.
+komk-vtweg = p_vtweg.                                       "'10'.
+komk-spart = p_spart.                                       "'10'.
+
+komk-kunnr = komk-knrze = komk-kunre =
+komk-kunwe = p_kunnr.
+
+"Fechas
+komk-prsdt = komk-fbuda = komk-fkdat = komk-erdat =
+komk-audat = sy-datum.
+
+
+"Position
+komp-matnr = '100'.
+komp-werks = '1210'.
+
+"Testing
+*koprt-posnr = '0'.
+*koprt-stunr = '510'.
+*koprt-zaehk = '0'.
+*koprt-kschl2 = ''.
+*koprt-kschl = 'ZDFI'.
+*koprt-kolnr = '65'.
+*koprt-typ = '2'.
+*koprt-msgnr = ''.
+*
+*sdprothead-pappl = 'SDF'.
+*sdprothead-vbeln = ''.
+*sdprothead-prottype = 'CONDA'.
+*sdprothead-posnr = '10'.
+*sdprothead-etenr = '0'.
+*sdprothead-usrprotyp = ''.
+*sdprothead-contline = ''.
+*sdprothead-usr = ''.
+*sdprothead-createdate = '0'.
+*sdprothead-createtime = '0'.
+
+
+
+
+
+"busca valor de condición
+LOOP AT tl_682 ASSIGNING <wa_t682>.
+  MOVE-CORRESPONDING <wa_t682> TO sl_t682.
+
+  CALL FUNCTION 'SD_COND_ACCESS'
+  EXPORTING
+    application                      = 'V' "Pricing
+    condition_type                   = p_cond
+*   DATE                             = SY-DATLO
+    header_comm_area                 = komk
+    position_comm_area               = komp
+*   PRESTEP                          = ' '
+*   PROTOCOL_DATE                    = ' '
+*   PROTOCOL_ACCESS                  = ' '
+*   READ_ONLY_ONE_RECORD             = 'X'
+    t682i_i                          = <wa_t682>            "sl_t682
+    koprt_i                          = koprt
+*   sdprothead_i                     = sdprothead
+*   CALL_MODUS                       = 'A'
+*   READ_ALL_PRESTEP                 = ' '
+*   NO_MEM_IMPORT                    = ' '
+* IMPORTING
+*   CONDITION_IS_PURELY_HEADER       =
+*   CONDITION_IS_IN_MEMORY           =
+  TABLES
+    condition_records                = tl_cond
+* CHANGING
+*   POSITION_COMM_AREA_DYNAMIC       =
+*   POSITION_COMM_MULTI_VALUES       =
+ EXCEPTIONS
+   field_is_initial                 = 1
+   not_read_unqualified             = 2
+   read_but_not_found               = 3
+*   READ_BUT_BLOCKED                 = 4
+*   T682Z_MISSING                    = 5
+*   T681V_MISSING                    = 6
+*   T681Z_MISSING                    = 7
+*   MVA_ERROR                        = 8
+*   OTHERS                           = 9
+    .
+  IF sy-subrc <> 0.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    APPEND LINES OF tl_cond TO tl_cond_show.
+    IF <wa_t682>-kzexl = true.
+      EXIT.
+    ENDIF.
+  ENDIF.
+ENDLOOP.
+
+"
+MESSAGE s000(zcm_jobs) WITH 'Success'.
+
+IF tl_cond_show[] IS NOT INITIAL.
+  "Get valores de las condiciones
+  SELECT knumh
+         kopos
+         kschl
+         krech
+         kbetr
+         konwa
+  INTO TABLE tl_konp
+  FROM konp
+  FOR ALL ENTRIES IN tl_cond_show
+  WHERE knumh = tl_cond_show-knumh.
+
+  CHECK sy-subrc = 0.
+
+  "Cambiando porcentajes de salida
+  LOOP AT tl_konp ASSIGNING <wa_konp>.
+    IF <wa_konp>-krech = 'A'."Porcentaje
+      <wa_konp>-kbetr = <wa_konp>-kbetr /  10.
+    ENDIF.
+  ENDLOOP.
+
+  "$ Show ALV
+  CALL METHOD zcl_aro=>show_popup
+    CHANGING
+      ct_tabla = tl_konp.
+ENDIF.
