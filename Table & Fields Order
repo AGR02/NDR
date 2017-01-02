@@ -1,0 +1,106 @@
+*&---------------------------------------------------------------------*
+*& Report  YARO
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  yaro.
+*SELECT auart
+*       netwr
+*INTO TABLE tl_vbak
+*FROM vbak
+*WHERE erdat IN so_erdat
+*AND auart IN so_auart
+*AND vkorg = p_vkorg
+*AND vtweg = p_vtweg
+*AND spart = p_spart.
+
+DATA:
+fieldname TYPE fieldname.
+
+PARAMETERS:
+p_tab TYPE tabname.
+
+SELECT-OPTIONS:
+s_fname FOR fieldname NO INTERVALS.
+
+START-OF-SELECTION.
+  TYPES:
+  BEGIN OF ty_campos2,
+    fieldname TYPE fieldname,
+    tab_position TYPE tabfdpos,
+  END OF ty_campos2,
+
+  tt_campos2 TYPE STANDARD TABLE OF ty_campos2.
+
+  DATA:
+  sl_fnames TYPE ty_campos2,
+  tg_fnames TYPE tt_campos2,
+  tg_descripcion TYPE wsaf_t_table_defines.
+
+  FIELD-SYMBOLS:
+  <sl_fieldname> LIKE LINE OF s_fname,
+  <sl_desc> LIKE LINE OF tg_descripcion.
+
+
+
+  CALL FUNCTION 'WSAF_READ_TABLE_DEFINES'
+    EXPORTING
+      i_tabname                 = p_tab
+*   IMPORTING
+*     O_GESAMT_INTERN           =
+*     O_GESAMT_LEN              =
+    TABLES
+      i_table_description       = tg_descripcion
+   EXCEPTIONS
+     wrong_call                = 1
+     table_not_found           = 2
+     OTHERS                    = 3
+            .
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+  SORT: tg_descripcion BY fieldname,
+        s_fname BY low.
+
+  LOOP AT s_fname ASSIGNING <sl_fieldname>.
+    CALL FUNCTION 'SCP_REPLACE_STRANGE_CHARS'
+      EXPORTING
+        intext            = <sl_fieldname>-low
+      IMPORTING
+        outtext           = <sl_fieldname>-low
+      EXCEPTIONS
+        invalid_codepage  = 1
+        codepage_mismatch = 2
+        internal_error    = 3
+        cannot_convert    = 4
+        fields_not_type_c = 5
+        OTHERS            = 6.
+
+    CONDENSE <sl_fieldname>-low NO-GAPS.
+
+    READ TABLE tg_descripcion WITH KEY fieldname = <sl_fieldname>-low
+                              ASSIGNING <sl_desc>
+                              BINARY SEARCH.
+    IF sy-subrc = 0.
+      sl_fnames-tab_position = <sl_desc>-tab_position.
+    ELSE.
+      sl_fnames-tab_position = '9999'.
+    ENDIF.
+
+    sl_fnames-fieldname = <sl_fieldname>-low.
+    APPEND sl_fnames TO tg_fnames.
+  ENDLOOP.
+
+  SORT tg_fnames BY tab_position.
+
+  "$ Region agr1
+  CALL METHOD zcl_aro=>show_popup
+    CHANGING
+      ct_tabla = tg_fnames.
+
+  "$ Endregion agr1
