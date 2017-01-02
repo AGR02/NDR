@@ -1,0 +1,57 @@
+*&---------------------------------------------------------------------*
+*& Report  YARO_TEST
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  yaro_test.
+
+START-OF-SELECTION.
+
+  DATA:
+  l_s_general TYPE  mdr1insingleround,
+  l_s_results TYPE mdr1outsingleround,
+  rd_grund TYPE mdr1trundungsgrund.
+
+  CALL FUNCTION 'MD_CONV_QUANTITY_FLOAT_TO_PACK'
+    EXPORTING
+      iv_menge = 6
+    IMPORTING
+      ev_menge = l_s_general-menge.
+
+*  l_s_general-menge = 3.
+  l_s_general-opcode              =  '2'.
+  l_s_general-matnr               =  '000000000000000455'.
+  l_s_general-meinh               =  'PZA'.
+  l_s_general-werks               =  1190.
+  l_s_general-vkorg               =  1190.
+  l_s_general-vtweg               =  10.
+  l_s_general-spart               =  10.
+  l_s_general-kunnr               =  '1048871'.
+*  l_s_general-infls               =  tvak-infls.
+
+  CALL FUNCTION 'MD_SINGLE_ROUNDING'
+    EXPORTING
+      i_s_general        = l_s_general
+    IMPORTING
+      e_s_results        = l_s_results
+    TABLES
+      e_t_round_reasons  = rd_grund
+    EXCEPTIONS
+      invalid_opcode     = 1
+      no_purchase_org    = 2
+      rdpr_not_found     = 3
+      material_not_found = 4
+      meinh_not_found    = 5
+      bad_params         = 6
+      debitor_not_found  = 7
+      no_round           = 8
+      rdprf_not_found    = 9
+      error              = 10
+      OTHERS             = 99.
+
+  IF sy-subrc = 0.
+
+  ENDIF.
