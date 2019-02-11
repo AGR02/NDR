@@ -1,0 +1,88 @@
+  METHOD /irm/if_ex_badi_ipsi_all~billing_header_fill.
+
+*-- Local Variables
+    DATA: vl_days            TYPE tfmatage,
+          vl_xref3           TYPE xref3,
+          vl_due_date        TYPE datum,
+          vl_bill_folactdate TYPE j_1alinfvl.
+
+*-- Get Billing Document Payment due date
+"Obtener fecha de vencimiento de la factura
+    CALL FUNCTION 'J_1A_SD_CI_DUEDATE_GET'
+      EXPORTING
+        iv_vbeln                 = is_vbrk-vbeln
+        iv_zterm                 = is_vbrk-zterm
+*       IV_RATNR                 = 1
+      IMPORTING
+        ev_netdate               = vl_due_date
+      EXCEPTIONS
+        fi_document_not_found    = 1
+        payment_terms_incomplete = 2
+        invoice_not_found        = 3
+        OTHERS                   = 4.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    IF flt_val EQ 'ZSI1'.
+*-- Check if entry maintained in A838 - Billing Folio date
+      SELECT SINGLE a~zzfolactdate
+        FROM a838 AS a INNER JOIN konp AS b
+          ON b~knumh EQ a~knumh
+        INTO vl_bill_folactdate
+       WHERE a~kappl   EQ z_vis_cl_global_constants=>c_kappl_sales
+         AND a~kschl   EQ
+             z_vis_cl_global_constants=>c_kschl_bill_folio_date "ZS26
+
+         AND a~vgbel   EQ is_vbrk-vbeln
+         AND a~dynke1  EQ z_vis_cl_global_constants=>c_complete_pay "C
+         AND a~datbi   GE sy-datum
+         AND a~datab   LE sy-datum
+         AND b~loevm_ko EQ space.
+    ENDIF.
+
+    IF flt_val EQ 'ZSI2'.
+*-- . XREF3 field (BSID-XREF3) if has value then we need to set the FDV
+*-- no of days value as 999 which automatically will set as - 50 % ,
+*-- agreement will have PPV scale value as 999 - -50%
+      CALL FUNCTION 'Z_VIS_FM_BILL_AMT_PERC_PAID'
+        EXPORTING
+          im_zukri       = cs_ipsihdr-zukri
+        IMPORTING
+          ex_xref3       = vl_xref3
+          ex_paymnt_date = vl_bill_folactdate.
+*-- Document Date -> Payment date
+      cs_ipsihdr-audat = cs_ipsihdr-budat = vl_bill_folactdate.
+    ENDIF.
+
+    IF vl_due_date GT vl_bill_folactdate.
+*-- FDV Value - Difference of Billing doc due date & Folio date
+      CALL FUNCTION 'FIMA_DAYS_AND_MONTHS_AND_YEARS'
+        EXPORTING
+          i_date_from = vl_bill_folactdate
+          i_date_to   = vl_due_date
+        IMPORTING
+          e_days      = vl_days.
+    ELSE.
+*-- FDV Value - Difference of Billing doc creation date & Folio date
+      CALL FUNCTION 'FIMA_DAYS_AND_MONTHS_AND_YEARS'
+        EXPORTING
+          i_date_from = vl_due_date
+          i_date_to   = vl_bill_folactdate
+        IMPORTING
+          e_days      = vl_days.
+    ENDIF.
+
+    cs_ipsihdr-zzfdv = vl_days.
+
+    IF NOT vl_xref3 IS INITIAL.
+      cs_ipsihdr-zzfdv = 999.
+    ENDIF.
+
+*-- Get Type of Business
+    SELECT SINGLE sregl
+      FROM knb1
+      INTO @cs_ipsihdr-zzsregl
+     WHERE kunnr EQ @is_vbrk-kunrg.
+
+  ENDMETHOD.
