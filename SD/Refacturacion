@@ -1,1 +1,58 @@
+PROGRAM zo2crep_refacturacionmasiva.
 
+*----------------------------------------------------------------------*
+* Declaración de Includes.                                             *
+*----------------------------------------------------------------------*
+include zo2cinc_refacturacionmasiva_a,.
+         zo2cinc_refacturacionmasiva_b,
+         zo2cinc_refacturacionmasiva_o,
+         zo2cinc_refacturacionmasiva_i,
+         zo2cinc_refacturacionmasiva_cl.
+
+
+*----------------------------------------------------------------------*
+* Evento de inicialización.                                            *
+* ---------------------------------------------------------------------*
+INITIALIZATION.
+
+*----------------------------------------------------------------------*
+* Evento Selección de Pantalla.                                        *
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+
+  CASE sy-dynnr.
+    WHEN 0510.
+      IF sy-ucomm EQ 'CRET'.
+        PERFORM f_llamar_proceso_s_510.
+      ENDIF.
+    WHEN 0520.
+      IF sy-ucomm EQ 'CRET'.
+        PERFORM f_llamar_proceso_s_520.
+      ENDIF.
+    WHEN 0530.
+      IF sy-ucomm EQ 'CRET'.
+        PERFORM f_llamar_proceso_s_530.
+      ENDIF.
+  ENDCASE.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM f_bloquear_campos.
+
+*----------------------------------------------------------------------*
+* Evento de Uso de Comandos                                            *
+*----------------------------------------------------------------------*
+AT USER-COMMAND.
+*----------------------------------------------------------------------*
+* Proceso Principal.                                                   *
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+
+*----------------------------------------------------------------------*
+* Acciones a realizarse al final de la selección.
+*----------------------------------------------------------------------*
+END-OF-SELECTION.
+
+*GUI Texts
+*----------------------------------------------------------
+* 0500 --> Refacturación masiva - Menu de opciones
+* 0500 --> Refacturación masiva - Menu de opciones
